@@ -140,7 +140,16 @@ def infer():
     parser.add_argument(
         "-o", "--output-dir", default=None, type=str, help="Output directory to save files."
     )
+    parser.add_argument(
+        "-d", "--device", default=None, type=str, help="Device to run the model on, eg. 'cuda:0'."
+        "Defaults to 'cuda' if CUDA is available, else 'cpu'."
+    )
     args = parser.parse_args()
+
+    if args.device is None:
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+    else:
+        device = args.device
 
     model = BaseModel.from_pretrained(pretrained_model_conf_or_path=args.url_or_path)
     if args.ola_window is not None:
@@ -152,8 +161,9 @@ def infer():
             window=args.ola_window_type,
             reorder_chunks=not args.ola_no_reorder,
         )
-    file_list = _process_files_as_list(args.files)
+    model = model.to(device)
 
+    file_list = _process_files_as_list(args.files)
     for f in file_list:
         separate(
             model,
