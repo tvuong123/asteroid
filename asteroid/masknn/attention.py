@@ -26,9 +26,9 @@ class ImprovedTransformedLayer(nn.Module):
         norm (str, optional): Type of normalization to use.
 
     References
-        - [1] Chen, Jingjing, Qirong Mao, and Dong Liu. "Dual-Path Transformer
+        [1] Chen, Jingjing, Qirong Mao, and Dong Liu. "Dual-Path Transformer
         Network: Direct Context-Aware Modeling for End-to-End Monaural Speech Separation."
-         arXiv (2020).
+        arXiv (2020).
     """
 
     def __init__(
@@ -53,22 +53,22 @@ class ImprovedTransformedLayer(nn.Module):
         self.norm_ff = norms.get(norm)(embed_dim)
 
     def forward(self, x):
-        x = x.transpose(1, -1)
-        # x is batch, seq_len, channels
+        tomha = x.permute(2, 0, 1)
+        # x is batch, channels, seq_len
+        # mha is seq_len, batch, channels
         # self-attention is applied
-        out = self.mha(x, x, x)[0]
-        x = self.dropout(out) + x
-        x = self.norm_mha(x.transpose(1, -1)).transpose(1, -1)
+        out = self.mha(tomha, tomha, tomha)[0]
+        x = self.dropout(out.permute(1, 2, 0)) + x
+        x = self.norm_mha(x)
 
         # lstm is applied
-        out = self.linear(self.dropout(self.activation(self.recurrent(x)[0])))
-        x = self.dropout(out) + x
-        return self.norm_ff(x.transpose(1, -1))
+        out = self.linear(self.dropout(self.activation(self.recurrent(x.transpose(1, -1))[0])))
+        x = self.dropout(out.transpose(1, -1)) + x
+        return self.norm_ff(x)
 
 
 class DPTransformer(nn.Module):
-    """Dual-path Transformer
-        introduced in [1].
+    """Dual-path Transformer introduced in [1].
 
     Args:
         in_chan (int): Number of input filters.
@@ -89,9 +89,9 @@ class DPTransformer(nn.Module):
         dropout (float, optional): Dropout ratio, must be in [0,1].
 
     References
-        - [1] Chen, Jingjing, Qirong Mao, and Dong Liu. "Dual-Path Transformer
+        [1] Chen, Jingjing, Qirong Mao, and Dong Liu. "Dual-Path Transformer
         Network: Direct Context-Aware Modeling for End-to-End Monaural Speech Separation."
-         arXiv (2020).
+        arXiv (2020).
     """
 
     def __init__(
@@ -181,13 +181,13 @@ class DPTransformer(nn.Module):
             self.output_act = mask_nl_class()
 
     def forward(self, mixture_w):
-        """
+        r"""Forward.
+
         Args:
-            mixture_w (:class:`torch.Tensor`): Tensor of shape
-                [batch, n_filters, n_frames]
+            mixture_w (:class:`torch.Tensor`): Tensor of shape $(batch, nfilters, nframes)$
+
         Returns:
-            :class:`torch.Tensor`
-                estimated mask of shape [batch, n_src, n_filters, n_frames]
+            :class:`torch.Tensor`: estimated mask of shape $(batch, nsrc, nfilters, nframes)$
         """
         if self.input_layer is not None:
             mixture_w = self.input_layer(mixture_w.transpose(1, 2)).transpose(1, 2)
